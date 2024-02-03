@@ -1,0 +1,10 @@
+A*
+23
+4
+start 0 0 0
+abcd 1 2 3
+efgh 4 5 6
+goal 8 9 10
+2
+start abcd
+abcd efgh
