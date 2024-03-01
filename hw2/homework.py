@@ -1,16 +1,5 @@
 # Imports
 import os
-__AVERAGE_EVALUATION_TIME_IN_MY_MACHINE__ = 0.015601277351379395
-# A function that calibrates the average execution time
-def calibrate():
-  # Read the average execution time from the calibration file if it exists
-  global __AVERAGE_EVALUATION_TIME_IN_GRADING_MACHINE__
-  current_dir = os.path.dirname(os.path.abspath(__file__))
-  if os.path.exists(os.path.join(current_dir, 'calibration.txt')):
-    with open(os.path.join(current_dir, 'calibration.txt'), 'r') as f:
-      __AVERAGE_EVALUATION_TIME_IN_GRADING_MACHINE__ = float(f.read())
-      return
-  __AVERAGE_EVALUATION_TIME_IN_GRADING_MACHINE__ = 0
 
 # A function that takes in a file and returns a dictionary with the input values
 def readInput(file):
@@ -351,18 +340,14 @@ def findBestMove(state):
   # If there are available moves for the player, run the minimax algorithm to find the best move
   # Calibrate the depth of the minimax algorithm to find the best move
   remainingTime = state['timeRemaining']
-  depthCalibration = 0
-  if __AVERAGE_EVALUATION_TIME_IN_GRADING_MACHINE__ > __AVERAGE_EVALUATION_TIME_IN_MY_MACHINE__:  # Grading machine is slower
-    depthCalibration = -1
-  else:
-    depthCalibration = 1
 
-  if __AVERAGE_EVALUATION_TIME_IN_GRADING_MACHINE__ == 0:
-    depthCalibration = 0
-
+  # If remaining time is less than 20 seconds, set the depth to 1
+  # If remaining time is less than 60 seconds, set the depth to 2
+  # If remaining time is less than 150 seconds, set the depth to 3
+  # If remaining time is less than 300 seconds, set the depth to 4
   depth = 1 if remainingTime < 20 else 2 if remainingTime < 60 else 3 if remainingTime < 150 else 4
-  depth += depthCalibration
 
+  # If there are less than 10 available moves, increase the depth
   if len(moves) < 10:
     depth += 1
 
@@ -382,17 +367,12 @@ def findBestMove(state):
 
 # Main function
 def main():
-  # Calibrate the average execution time
-  calibrate()
-
   # Read the input file
   state = readInput('input.txt')
 
   # Find the best move
   bestMove = findBestMove(state)
   print("Best Move:", bestMove)
-  print("Average Evaluation Time in My Machine:", __AVERAGE_EVALUATION_TIME_IN_MY_MACHINE__)
-  print("Average Execution time in grading machine:", __AVERAGE_EVALUATION_TIME_IN_GRADING_MACHINE__)
 
   # Write the best move to the output file
   writeOutput('output.txt', bestMove)
