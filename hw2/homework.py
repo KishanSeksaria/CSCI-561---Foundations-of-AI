@@ -111,9 +111,9 @@ def findValidMoves(state, player, position, positionIsPlayerPiece):
 # This is done to avoid duplicate moves and to avoid recalculation when flipping the opponent's pieces
 def getAvailableMoves(state, player):
   moves = {}
-
+  playerPositions = state['playerPieces'] if player == state['player'] else state['opponentPieces']
   # If the number of empty spaces is less than the number of player pieces, use that to find the valid moves
-  if state['emptySpaces'] < state['playerPieces']:
+  if len(state['emptySpaces']) < len(playerPositions):
     for position in state['emptySpaces']:
       validMoves = findValidMoves(state, player, position, False)
       for move in validMoves:
@@ -123,7 +123,7 @@ def getAvailableMoves(state, player):
   # Find all the valid moves for the player at each position
   # If the move is not in the map, add the move as a key and the position as a value
   # If the move is in the map, append the position to the list of positions
-  for position in state['playerPieces']:
+  for position in playerPositions:
     validMoves = findValidMoves(state, player, position, True)
     for move in validMoves:
       moves.setdefault(move, []).append(position)
@@ -202,9 +202,11 @@ def evaluate(state):
   edge_score = 0
   piece_score = 0
 
-  for i in range(12):
-    for j in range(12):
-      piece_at_position = state['board'][i][j]
+  board = state['board']
+
+  for i in range(len(board)):
+    for j in range(len(board[0])):
+      piece_at_position = board[i][j]
 
       # If the position is a corner, add the piece to the corner score
       if (i == j == 0 or i == j == 11):
@@ -221,14 +223,14 @@ def evaluate(state):
   # Calculate the score for each feature
   corner_score *= weights['corner']
   edge_score *= weights['edge']
-  mobility_score = len(getAvailableMoves(state, state['player'])) * weights['mobility']
+  playerMoves = getAvailableMoves(state, state['player'])
+  opponentMoves = getAvailableMoves(state, 0-state['player'])
+  mobility_score = (len(playerMoves) - len(opponentMoves)) * weights['mobility']
   # mobility_score = calculate_mobility_score(state) * weights['mobility'] # Not using mobility score
   piece_score *= weights['piece']
 
   # Calculate the total evaluation score
-  # evaluation_score = corner_score + edge_score + mobility_score + piece_score
   evaluation_score = corner_score + edge_score + piece_score + mobility_score
-
   return evaluation_score
 
 # A function that takes in a state and a move and returns the new state after the move has been made
@@ -274,11 +276,7 @@ def makeMove(state, move, positions):
 # Also tried to implement alpha-beta pruning to improve the performance of the algorithm
 def minimax(state, moves, depth, isMaximizing, alpha=float('-inf'), beta=float('inf')):
   # If the depth is 0, return the evaluation of the state
-  if depth == 0:
-    return None, evaluate(state)
-
-  # If there are no available moves for the player, return the evaluation of the state
-  if not moves:
+  if depth == 0 or not moves:
     return None, evaluate(state)
 
   # If the player is maximizing, return the maximum value of the moves
@@ -317,15 +315,15 @@ def minimax(state, moves, depth, isMaximizing, alpha=float('-inf'), beta=float('
 def findBestMove(state):
   # Get all the available moves for the player
   moves = getAvailableMoves(state, state['player'])
-  print('Available Moves:', moves, len(moves))
 
   # If there are no available moves for the player, return 'Pass'
   if not moves:
     return 'Pass'
 
   # If remaining time is less than 0.1, return the first available move
-  if state['timeRemaining'] < 0.1:
-    return formatMove(list(moves.keys())[0])
+  if state['timeRemaining'] < 0.5:
+    moves = list(moves.keys())
+    return formatMove(moves[0]), 0
 
   # If there are available moves for the player, run the minimax algorithm to find the best move
   # Calibrate the depth of the minimax algorithm to find the best move
@@ -335,7 +333,7 @@ def findBestMove(state):
   # If remaining time is less than 60 seconds, set the depth to 2
   # If remaining time is less than 150 seconds, set the depth to 3
   # If remaining time is less than 300 seconds, set the depth to 4
-  depth = 1 if remainingTime < 20 else 2 if remainingTime < 60 else 3 if remainingTime < 150 else 4
+  depth = 1 if remainingTime < 20 else 2 if remainingTime < 60 else 3 if remainingTime < 120 else 4
 
   # If there are less than 10 available moves, increase the depth
   if len(moves) < 10:
@@ -348,24 +346,24 @@ def findBestMove(state):
   # Run the minimax algorithm to find the best move
   import time
   start_time = time.time()
+
   bestMove, bestValue = minimax(state, moves, depth, True)
+
   end_time = time.time()
   print("Evaluation Time:", end_time - start_time, "for depth:", depth, "and number of moves:", len(moves),
-        "and remaining time:", remainingTime, "and best value:", bestValue, "and best move:", bestMove)
+        "and remaining time:", remainingTime, "and best value:", bestValue, "and best move:", formatMove(bestMove))
 
-  return formatMove(bestMove)
+  return formatMove(bestMove), bestValue
 
 # Main function
 def main():
   # Read the input file
   state = readInput('input.txt')
 
-  # import pprint
-  # pprint.pprint(state)
-
   # Find the best move
-  bestMove = findBestMove(state)
-  print("Best Move:", bestMove)
+  bestMove, bestValue = findBestMove(state)
+  print(getAvailableMoves(state, state['player']).keys())
+  print(getAvailableMoves(state, 0-state['player']).keys())
 
   # Write the best move to the output file
   writeOutput('output.txt', bestMove)
