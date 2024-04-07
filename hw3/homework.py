@@ -4,28 +4,28 @@ import csv
 import os
 
 # I/O functions
-# Read input features from train_data.csv
-def readInputFeatures(filename):
-  filename = os.path.join(os.path.dirname(__file__), filename)
+# Read input features and labels from train_data.csv and train_label.csv
+def readInput():
+  # Read the features from train_data.csv
+  filename = os.path.join(os.path.dirname(__file__), "train_data1.csv")
   with open(filename, 'r') as f:
     reader = csv.reader(f)
     headers = next(reader)
     features = []
     for row in reader:
       features.append(row)
-  return features
 
-# Read input labels from train_label.csv
-def readInputLabels(filename):
-  # Read the input labels from the file leaving out the header
-  filename = os.path.join(os.path.dirname(__file__), filename)
+  # Read the labels from train_label.csv
+  filename = os.path.join(os.path.dirname(__file__), "train_label1.csv")
   with open(filename, 'r') as f:
     reader = csv.reader(f)
     header = next(reader)
     labels = []
     for row in reader:
       labels.append(row)
-  return labels
+
+  # Return the features and labels
+  return features, labels
 
 # Write the output to output.csv
 def writeOutput(filename, outputs: list[int]):
@@ -47,10 +47,7 @@ def train(features, labels):
 # main function
 def main():
   # Read input features from train_data.csv
-  features = readInputFeatures("train_data1.csv")
-
-  # Read input labels from train_label.csv
-  labels = readInputLabels("train_label1.csv")
+  features, labels = readInput()
 
   # TODO: Implement the following functions
   # # Train the model
