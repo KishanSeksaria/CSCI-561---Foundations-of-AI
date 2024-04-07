@@ -362,8 +362,6 @@ def main():
 
   # Find the best move
   bestMove, bestValue = findBestMove(state)
-  print(getAvailableMoves(state, state['player']).keys())
-  print(getAvailableMoves(state, 0-state['player']).keys())
 
   # Write the best move to the output file
   writeOutput('output.txt', bestMove)
