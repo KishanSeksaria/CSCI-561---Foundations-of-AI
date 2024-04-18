@@ -5,7 +5,7 @@ import os
 import re
 
 ####################################################################################################
-# I/O functions
+# ↓ I/O functions ↓
 
 # Read input features
 def readFeatures(filename):
@@ -38,7 +38,8 @@ def writeOutput(filename, outputs):
       f.write(str(output) + "\n")
 
 ####################################################################################################
-# Preprocess functions
+# ↓ Preprocess functions ↓
+
 # Normalize features
 def normalize_features(X, feature_indices):
   for i in feature_indices:
@@ -107,7 +108,7 @@ def preprocess_features(features, X):
 
 
 ####################################################################################################
-# Model functions
+# ↓ Model functions ↓
 
 # TODO: Implement the following function
 # Train the model
@@ -117,7 +118,7 @@ def train(features, labels):
 
 
 ####################################################################################################
-# Test functions
+# ↓ Test functions ↓
 
 # TODO: Implement the following function
 # Test the model
@@ -127,7 +128,7 @@ def test(features, model):
 
 
 ####################################################################################################
-# Main function
+# ↓ Main function ↓
 def main():
   # Read input features from train_data.csv
   features, X_train = readFeatures("train_data1.csv")
