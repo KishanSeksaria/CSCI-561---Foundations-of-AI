@@ -110,21 +110,94 @@ def preprocess_features(features, X):
 ####################################################################################################
 # ↓ Model functions ↓
 
-# TODO: Implement the following function
+# I want to create a MLP neural network model to predict the number of beds in a property
+# The model will have the following architecture:
+# Input layer: Number of features
+# Hidden layer 1: 128 units, ReLU activation
+# Hidden layer 2: 64 units, ReLU activation
+# Output layer: 1 unit, Softmax activation
+# Loss function: Mean Squared Error
+# Optimizer: Adam
+# Create the model
+
+def create_model(input_dim, hidden_dims=[128, 64], output_dim=1):
+  np.random.seed(0)
+  model = {}
+  model['num_layers'] = len(hidden_dims) + 1
+  model['W1'] = np.random.randn(input_dim, hidden_dims[0]) / np.sqrt(input_dim)
+  model['b1'] = np.zeros((1, hidden_dims[0]))
+  for i in range(1, len(hidden_dims)):
+    model[f'W{i+1}'] = np.random.randn(hidden_dims[i-1], hidden_dims[i]) / np.sqrt(hidden_dims[i-1])
+    model[f'b{i+1}'] = np.zeros((1, hidden_dims[i]))
+  model[f'W{len(hidden_dims)+1}'] = np.random.randn(hidden_dims[-1], output_dim) / np.sqrt(hidden_dims[-1])
+  model[f'b{len(hidden_dims)+1}'] = np.zeros((1, output_dim))
+  return model
+
+# Forward pass
+def forward(model, X):
+  num_layers = model['num_layers']
+  W = [model[f'W{i}'] for i in range(1, num_layers+1)]
+  b = [model[f'b{i}'] for i in range(1, num_layers+1)]
+
+  # Forward pass
+  a = X
+  for i in range(num_layers):
+    z = np.dot(a, W[i]) + b[i]
+    a = np.maximum(0, z)
+
+  # Output layer
+  z = np.dot(a, W[num_layers]) + b[num_layers]
+  a = np.exp(z) / np.sum(np.exp(z), axis=1, keepdims=True)
+
+  return a
+
+# Loss function
+def compute_loss(model, X, y):
+  N = X.shape[0]
+  predictions = forward(model, X)
+  return np.sum((predictions - y) ** 2) / N
+
+# Backward pass
+def backward(model, X, y):
+  num_layers = model['num_layers']
+  W = [model[f'W{i}'] for i in range(1, num_layers+1)]
+  b = [model[f'b{i}'] for i in range(1, num_layers+1)]
+  m = X.shape[0]
+  gradients = {}
+  # Compute gradients for output layer
+  dz = forward(model, X) - y
+  gradients[f'dW{num_layers}'] = np.dot(forward(model, X).T, dz) / m
+  gradients[f'db{num_layers}'] = np.sum(dz, axis=0, keepdims=True) / m
+  # Compute gradients for hidden layers
+  da = dz
+  for i in range(num_layers-1, 0, -1):
+    dz = np.dot(da, W[i].T) * (forward(model, X) > 0)
+    gradients[f'dW{i}'] = np.dot(forward(model, X).T, dz) / m
+    gradients[f'db{i}'] = np.sum(dz, axis=0, keepdims=True) / m
+    da = dz
+  return gradients, compute_loss(model, X, y)
+
+# Update the model parameters
+def update_parameters(model, gradients, learning_rate):
+  for key in model:
+    model[key] -= learning_rate * gradients['d' + key]
+
+  return model
+
 # Train the model
-def train(features, labels):
-  # Train the model using the features and labels
-  return 0
+def train(model, features, labels, epochs=1000, learning_rate=1e-3):
+  for epoch in range(epochs):
+    gradients, loss = backward(model, features, labels)
+    model = update_parameters(model, gradients, learning_rate)
+    if epoch % 100 == 0:
+      print(f'Epoch: {epoch}, Loss: {loss}')
 
+  return model
 
-####################################################################################################
-# ↓ Test functions ↓
-
-# TODO: Implement the following function
 # Test the model
-def test(features, model):
-  # Test the model using the features
-  return [0] * len(features)
+def test(model, features):
+  predictions = forward(model, features)
+  return predictions.flatten()
 
 
 ####################################################################################################
@@ -138,13 +211,20 @@ def main():
   # Preprocess the features
   features, X_train = preprocess_features(features, X_train)
 
-  # TODO: Implement the following function
-  # Train the model
-  model = train(X_train, Y_train)
+  # Create the model
+  model = create_model(X_train.shape[1])
 
-  # TODO: Implement the following function
+  # Train the model
+  model = train(model, X_train, Y_train)
+
+  # Read input features from test_data.csv
+  features, X_test = readFeatures("test_data1.csv")
+
+  # Preprocess the features
+  features, X_test = preprocess_features(features, X_test)
+
   # Test the model
-  outputs = test(X_train, model)
+  outputs = test(model, X_test)
 
   # Write the output to output.csv
   writeOutput("output.csv", outputs)
