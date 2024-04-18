@@ -5,6 +5,11 @@ import os
 import re
 
 ####################################################################################################
+# ↓ Global variables ↓
+# Global variable to store unique values of categorical features in training data
+unique_values_train = {}
+
+####################################################################################################
 # ↓ I/O functions ↓
 
 # Read input features
@@ -27,6 +32,10 @@ def readLabels(filename):
     Y = []
     for row in reader:
       Y.append(row)
+
+  # Convert the labels to float64 type
+  Y = np.array(Y).astype(np.float64)
+
   return labels, Y
 
 # Write the output to output.csv
@@ -66,10 +75,13 @@ def one_hot_encode(X, categorical_feature_indices):
   # One-hot encode categorical features
   encoded_categorical = []
   for col in categorical_feature_indices:
-    unique_values = list(set([row[col] for row in X]))
+    if col not in unique_values_train:
+      unique_values_train[col] = list(set([row[col] for row in X]))
+    unique_values = unique_values_train[col]
     encoded_data = np.zeros((len(X), len(unique_values)))
     for i, row in enumerate(X):
-      encoded_data[i, unique_values.index(row[col])] = 1
+      if row[col] in unique_values:
+        encoded_data[i, unique_values.index(row[col])] = 1
     encoded_categorical.append(encoded_data)
 
   # Remove original categorical features
@@ -104,100 +116,101 @@ def preprocess_features(features, X):
       "TYPE", "ADMINISTRATIVE_AREA_LEVEL_2", "LOCALITY", "SUBLOCALITY"]]
   X_processed = one_hot_encode(X_processed, categorical_features)
 
+  # Convert the data to float64 type
+  X_processed = X_processed.astype(np.float64)
+
   return relevant_features, X_processed
 
 
 ####################################################################################################
 # ↓ Model functions ↓
 
-# I want to create a MLP neural network model to predict the number of beds in a property
-# The model will have the following architecture:
-# Input layer: Number of features
-# Hidden layer 1: 128 units, ReLU activation
-# Hidden layer 2: 64 units, ReLU activation
-# Output layer: 1 unit, Softmax activation
-# Loss function: Mean Squared Error
-# Optimizer: Adam
-# Create the model
+# Multi-layer perceptron model
+class MLP:
+  def __init__(self, input_size, hidden_layers):
+    self.input_size = input_size
+    self.hidden_layers = hidden_layers
+    self.weights = []
+    self.biases = []
 
-def create_model(input_dim, hidden_dims=[128, 64], output_dim=1):
-  np.random.seed(0)
-  model = {}
-  model['num_layers'] = len(hidden_dims) + 1
-  model['W1'] = np.random.randn(input_dim, hidden_dims[0]) / np.sqrt(input_dim)
-  model['b1'] = np.zeros((1, hidden_dims[0]))
-  for i in range(1, len(hidden_dims)):
-    model[f'W{i+1}'] = np.random.randn(hidden_dims[i-1], hidden_dims[i]) / np.sqrt(hidden_dims[i-1])
-    model[f'b{i+1}'] = np.zeros((1, hidden_dims[i]))
-  model[f'W{len(hidden_dims)+1}'] = np.random.randn(hidden_dims[-1], output_dim) / np.sqrt(hidden_dims[-1])
-  model[f'b{len(hidden_dims)+1}'] = np.zeros((1, output_dim))
-  return model
+    # Initialize weights and biases
+    for i in range(len(hidden_layers)):
+      if i == 0:
+        self.weights.append(np.random.randn(input_size, hidden_layers[i]))
+      else:
+        self.weights.append(np.random.randn(hidden_layers[i - 1], hidden_layers[i]))
+      self.biases.append(np.zeros(hidden_layers[i]))
 
-# Forward pass
-def forward(model, X):
-  num_layers = model['num_layers']
-  W = [model[f'W{i}'] for i in range(1, num_layers+1)]
-  b = [model[f'b{i}'] for i in range(1, num_layers+1)]
+    # Initialize output layer weights and biases
+    self.weights.append(np.random.randn(hidden_layers[-1], 1))
+    self.biases.append(np.zeros(1))
+
+  # ReLU activation function
+  def relu(self, x):
+    return np.maximum(0, x)
+
+  # Softmax activation function
+  def softmax(self, x):
+    return np.exp(x) / np.sum(np.exp(x))
 
   # Forward pass
-  a = X
-  for i in range(num_layers):
-    z = np.dot(a, W[i]) + b[i]
-    a = np.maximum(0, z)
+  def forward(self, X):
+    self.activations = []
+    self.activations.append(X)
+    for i in range(len(self.weights)):
+      X = np.dot(X, self.weights[i]) + self.biases[i]
+      if i == len(self.weights) - 1:
+        X = self.softmax(X)
+      else:
+        X = self.relu(X)
+      self.activations.append(X)
+    return X
 
-  # Output layer
-  z = np.dot(a, W[num_layers]) + b[num_layers]
-  a = np.exp(z) / np.sum(np.exp(z), axis=1, keepdims=True)
+  # Backward pass
+  def backward(self, Y):
+    # Compute the loss
+    self.loss = np.mean((Y - self.activations[-1]) ** 2)
 
-  return a
+    # Compute the gradients
+    self.gradients = []
+    for i in range(len(self.weights) - 1, -1, -1):
+      if i == len(self.weights) - 1:
+        gradient = -2 * (Y - self.activations[-1]) * self.activations[i + 1] * (1 - self.activations[i + 1])
+      else:
+        gradient = np.dot(self.gradients[-1], self.weights[i + 1].T) * (self.activations[i + 1] > 0)
+      self.gradients.append(gradient)
 
-# Loss function
-def compute_loss(model, X, y):
-  N = X.shape[0]
-  predictions = forward(model, X)
-  return np.sum((predictions - y) ** 2) / N
+    # Update the weights and biases
+    for i in range(len(self.weights)):
+      if i == 0:
+        self.weights[i] -= self.learning_rate * np.dot(self.activations[i].T, self.gradients[-1])
+      else:
+        self.weights[i] -= self.learning_rate * np.dot(self.activations[i].T, self.gradients[-i - 1])
+      self.biases[i] -= self.learning_rate * np.sum(self.gradients[-i - 1], axis=0)
 
-# Backward pass
-def backward(model, X, y):
-  num_layers = model['num_layers']
-  W = [model[f'W{i}'] for i in range(1, num_layers+1)]
-  b = [model[f'b{i}'] for i in range(1, num_layers+1)]
-  m = X.shape[0]
-  gradients = {}
-  # Compute gradients for output layer
-  dz = forward(model, X) - y
-  gradients[f'dW{num_layers}'] = np.dot(forward(model, X).T, dz) / m
-  gradients[f'db{num_layers}'] = np.sum(dz, axis=0, keepdims=True) / m
-  # Compute gradients for hidden layers
-  da = dz
-  for i in range(num_layers-1, 0, -1):
-    dz = np.dot(da, W[i].T) * (forward(model, X) > 0)
-    gradients[f'dW{i}'] = np.dot(forward(model, X).T, dz) / m
-    gradients[f'db{i}'] = np.sum(dz, axis=0, keepdims=True) / m
-    da = dz
-  return gradients, compute_loss(model, X, y)
+  # Train the model
+  def train(self, X, Y, epochs=1000, learning_rate=0.01):
+    print("Training the model...")
+    self.learning_rate = learning_rate
+    for epoch in range(epochs):
+      for i in range(len(X)):
+        x = np.array(X[i], ndmin=2)
+        y = np.array(Y[i], ndmin=2)
+        self.forward(x)
+        self.backward(y)
+      if epoch % 10 == 0:
+        print("Epoch:", epoch, "Loss:", self.loss)
+    print("Training complete! Epoch:", epoch, "Loss:", self.loss)
 
-# Update the model parameters
-def update_parameters(model, gradients, learning_rate):
-  for key in model:
-    model[key] -= learning_rate * gradients['d' + key]
-
-  return model
-
-# Train the model
-def train(model, features, labels, epochs=1000, learning_rate=1e-3):
-  for epoch in range(epochs):
-    gradients, loss = backward(model, features, labels)
-    model = update_parameters(model, gradients, learning_rate)
-    if epoch % 100 == 0:
-      print(f'Epoch: {epoch}, Loss: {loss}')
-
-  return model
-
-# Test the model
-def test(model, features):
-  predictions = forward(model, features)
-  return predictions.flatten()
+  # Test the model
+  def test(self, X):
+    print("Testing the model...")
+    outputs = []
+    for i in range(len(X)):
+      x = np.array(X[i], ndmin=2)
+      output = self.forward(x)
+      outputs.append(output[0][0])
+    return outputs
 
 
 ####################################################################################################
@@ -212,10 +225,10 @@ def main():
   features, X_train = preprocess_features(features, X_train)
 
   # Create the model
-  model = create_model(X_train.shape[1])
+  model = MLP(input_size=X_train.shape[1], hidden_layers=[128, 64])
 
   # Train the model
-  model = train(model, X_train, Y_train)
+  model.train(X_train, Y_train, epochs=100, learning_rate=0.01)
 
   # Read input features from test_data.csv
   features, X_test = readFeatures("test_data1.csv")
@@ -224,7 +237,7 @@ def main():
   features, X_test = preprocess_features(features, X_test)
 
   # Test the model
-  outputs = test(model, X_test)
+  outputs = model.test(X_test)
 
   # Write the output to output.csv
   writeOutput("output.csv", outputs)
