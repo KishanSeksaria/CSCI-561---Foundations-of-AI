@@ -49,16 +49,16 @@ def normalize_features(X, feature_indices):
       X[j][i] = (float(X[j][i]) - min_val) / (max_val - min_val)
   return X
 
-# Label encode the "STATE" feature
-def label_encode_feature(X, feature_index):
-  unique_values = sorted(set(X[:, feature_index]))
-  value_to_int = {v: i for i, v in enumerate(unique_values)}
-
-  # Encode each data point's category value
+# Extract zip codes from "STATE" feature
+def extract_zip_codes(X, state_index):
   for i in range(len(X)):
-    X[i, feature_index] = value_to_int[X[i, feature_index]]
-
-  return X, value_to_int
+    state = X[i][state_index]
+    zip_code = re.search(r'\d{5}', state)
+    if zip_code:
+      X[i][state_index] = zip_code.group(0)
+    else:
+      X[i][state_index] = "00000"
+  return X
 
 # One-hot encode categorical features
 def one_hot_encode(X, categorical_feature_indices):
@@ -90,8 +90,8 @@ def preprocess_features(features, X):
   # Select relevant features from the data
   X_processed = np.array([[val for j, val in enumerate(row) if j in relevant_feature_indices] for row in X])
 
-  # Label encode the "STATE" feature
-  X_processed, state_mapping = label_encode_feature(X_processed, relevant_features.index("STATE"))
+  # Extract zip codes from the "STATE" feature
+  X_processed = extract_zip_codes(X_processed, relevant_features.index("STATE"))
 
   # Normalize the "PROPERTYSQFT", "PRICE", "BATH" and "STATE" features
   indices = [relevant_features.index(f) for f in ["PROPERTYSQFT", "PRICE", "BATH", "STATE"]]
@@ -103,7 +103,7 @@ def preprocess_features(features, X):
       "TYPE", "ADMINISTRATIVE_AREA_LEVEL_2", "LOCALITY", "SUBLOCALITY"]]
   X_processed = one_hot_encode(X_processed, categorical_features)
 
-  return relevant_features, X_processed, state_mapping
+  return relevant_features, X_processed
 
 
 ####################################################################################################
@@ -134,8 +134,8 @@ def main():
   # Read input labels from train_label.csv
   labels, Y_train = readLabels("train_label1.csv")
 
-  # Remove irrelevant features
-  features, X_train, state_mapping = preprocess_features(features, X_train)
+  # Preprocess the features
+  features, X_train = preprocess_features(features, X_train)
 
   # TODO: Implement the following function
   # Train the model
