@@ -55,8 +55,12 @@ def normalize_features(X, feature_indices):
     feature_values = [float(row[i]) for row in X]
     min_val = min(feature_values)
     max_val = max(feature_values)
-    for j in range(len(X)):
-      X[j][i] = (float(X[j][i]) - min_val) / (max_val - min_val)
+    if max_val != min_val:
+      for j in range(len(X)):
+        X[j][i] = (float(X[j][i]) - min_val) / (max_val - min_val)
+    else:
+      for j in range(len(X)):
+        X[j][i] = 0  # or any other value you want to assign when max_val == min_val
   return X
 
 # Extract zip codes from "STATE" feature
@@ -146,8 +150,18 @@ class MLP:
     self.biases.append(np.zeros(1))
 
   # ReLU activation function
-  def relu(self, x):
-    return np.maximum(0, x)
+  def relu(self, X):
+    # Compute the ReLU activation
+    activation = np.maximum(0, X)
+
+    # Check for NaN or infinite values
+    if np.isnan(activation).any() or np.isinf(activation).any():
+      print("NaN or infinite value encountered in activations")
+
+    # Clip activations
+    activation = np.clip(activation, -1e10, 1e10)
+
+    return activation
 
   # Softmax activation function
   def softmax(self, x):
@@ -160,24 +174,46 @@ class MLP:
     for i in range(len(self.weights)):
       X = np.dot(X, self.weights[i]) + self.biases[i]
       if i == len(self.weights) - 1:
-        X = self.softmax(X)
+        X = X  # No activation for output layer in regression
       else:
         X = self.relu(X)
       self.activations.append(X)
     return X
 
+  # Cross-entropy loss function
+  def cross_entropy_loss(self, y_pred, y_true):
+    epsilon = 1e-12  # to prevent log(0)
+    y_pred = np.clip(y_pred, epsilon, 1. - epsilon)
+    N = y_pred.shape[0]
+    ce_loss = -np.sum(y_true*np.log(y_pred+1e-9))/N
+    return ce_loss
+
+  # Mean squared error loss function
+  def mse_loss(self, y_pred, y_true):
+    N = y_pred.shape[0]
+    mse_loss = np.sum((y_true - y_pred)**2)/N
+    return mse_loss
+
   # Backward pass
   def backward(self, Y):
     # Compute the loss
-    self.loss = np.mean((Y - self.activations[-1]) ** 2)
+    self.loss = self.mse_loss(self.activations[-1], Y)
 
     # Compute the gradients
     self.gradients = []
     for i in range(len(self.weights) - 1, -1, -1):
       if i == len(self.weights) - 1:
-        gradient = -2 * (Y - self.activations[-1]) * self.activations[i + 1] * (1 - self.activations[i + 1])
+        gradient = -1 * (Y - self.activations[-1])  # Derivative of cross-entropy loss
       else:
         gradient = np.dot(self.gradients[-1], self.weights[i + 1].T) * (self.activations[i + 1] > 0)
+
+      # Check for NaN or infinite values
+      if np.isnan(gradient).any() or np.isinf(gradient).any():
+        print("NaN or infinite value encountered in gradients")
+
+      # Clip gradients
+      gradient = np.clip(gradient, -1, 1)
+
       self.gradients.append(gradient)
 
     # Update the weights and biases
@@ -228,7 +264,7 @@ def main():
   model = MLP(input_size=X_train.shape[1], hidden_layers=[128, 64])
 
   # Train the model
-  model.train(X_train, Y_train, epochs=100, learning_rate=0.01)
+  model.train(X_train, Y_train, epochs=1000, learning_rate=0.01)
 
   # Read input features from test_data.csv
   features, X_test = readFeatures("test_data1.csv")
