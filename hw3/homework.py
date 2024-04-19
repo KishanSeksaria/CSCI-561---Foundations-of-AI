@@ -3,6 +3,7 @@ import numpy as np
 import csv
 import os
 import re
+import time
 
 ####################################################################################################
 # ↓ Global variables ↓
@@ -100,7 +101,7 @@ def one_hot_encode(X, categorical_feature_indices):
 # Remove irrelevant features and preprocess the data
 # Note: This function is specific to the given dataset
 def preprocess_features(features, X):
-  irrelevant_features = ["BROKERTITLE", "ADDRESS", "MAIN_ADDRESS", "STREET_NAME", "LONG_NAME", "FORMATTED_ADDRESS", "LATITUDE", "LONGITUDE"]
+  irrelevant_features = ["BROKERTITLE", "ADDRESS", "MAIN_ADDRESS", "STREET_NAME", "LONG_NAME", "FORMATTED_ADDRESS"]
   relevant_feature_indices = [i for i, f in enumerate(features) if f not in irrelevant_features]
   relevant_features = [features[i] for i in relevant_feature_indices]
 
@@ -111,7 +112,7 @@ def preprocess_features(features, X):
   X_processed = extract_zip_codes(X_processed, relevant_features.index("STATE"))
 
   # Normalize the "PROPERTYSQFT", "PRICE", "BATH" and "STATE" features
-  indices = [relevant_features.index(f) for f in ["PROPERTYSQFT", "PRICE", "BATH", "STATE"]]
+  indices = [relevant_features.index(f) for f in ["PROPERTYSQFT", "PRICE", "BATH", "STATE", "LATITUDE", "LONGITUDE"]]
   X_processed = normalize_features(X_processed, indices)
 
   # One-hot encode categorical features
@@ -163,6 +164,26 @@ class MLP:
 
     return activation
 
+  def leaky_relu(self, X, alpha=0.01):
+    # Apply Leaky ReLU activation
+    activation = np.maximum(alpha * X, X)
+
+    # Check for NaN or infinite values (optional but recommended)
+    if np.isnan(activation).any() or np.isinf(activation).any():
+      print("NaN or infinite value encountered in activations (leaky relu)")
+
+    return activation
+
+  def sigmoid(self, X):
+    # Compute the sigmoid activation
+    activation = 1 / (1 + np.exp(-X))
+
+    # Check for NaN or infinite values (optional but recommended)
+    if np.isnan(activation).any() or np.isinf(activation).any():
+      print("NaN or infinite value encountered in activations (sigmoid)")
+
+    return activation
+
   # Softmax activation function
   def softmax(self, x):
     return np.exp(x) / np.sum(np.exp(x))
@@ -176,7 +197,7 @@ class MLP:
       if i == len(self.weights) - 1:
         X = X  # No activation for output layer in regression
       else:
-        X = self.relu(X)
+        X = self.leaky_relu(X)
       self.activations.append(X)
     return X
 
@@ -246,14 +267,26 @@ class MLP:
       x = np.array(X[i], ndmin=2)
       output = self.forward(x)
       outputs.append(output[0][0])
-    return outputs
+
+    # Round the predicted outputs to the nearest integer (assuming these represent number of bedrooms)
+    discrete_outputs = np.round(outputs).astype(int)
+
+    return discrete_outputs
+
+  # Check accuracy
+  def check_accuracy(self, Y_true, Y_pred):
+    accuracy = np.mean(Y_true == Y_pred)
+    return accuracy
 
 
 ####################################################################################################
 # ↓ Main function ↓
 def main():
+  start_time = time.time()
+
   # Read input features from train_data.csv
   features, X_train = readFeatures("train_data1.csv")
+
   # Read input labels from train_label.csv
   labels, Y_train = readLabels("train_label1.csv")
 
@@ -274,6 +307,15 @@ def main():
 
   # Test the model
   outputs = model.test(X_test)
+
+  labels, Y_test = readLabels("test_label1.csv")
+
+  # Check accuracy
+  accuracy = model.check_accuracy(Y_test, outputs)
+  print("Accuracy:", accuracy)
+
+  end_time = time.time()
+  print("Execution time:", end_time - start_time)
 
   # Write the output to output.csv
   writeOutput("output.csv", outputs)
